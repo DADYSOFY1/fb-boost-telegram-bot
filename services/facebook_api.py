@@ -593,8 +593,19 @@ async def _run_ad_core(
     ad_id = ad['ad_id']
 
     # ── 6. تفعيل ──
-    await client.activate_campaign(campaign_id)
-    await client.activate_ad_set(ad_set_id)
+    step = "تفعيل الحملة"
+    act_campaign = await client.activate_campaign(campaign_id)
+    if not act_campaign['success']:
+        await _rollback(client, campaign_id=campaign_id,
+                        ad_set_id=ad_set_id, ad_id=ad_id)
+        return {'success': False, 'step': step, 'error': act_campaign['error']}
+
+    step = "تفعيل Ad Set"
+    act_adset = await client.activate_ad_set(ad_set_id)
+    if not act_adset['success']:
+        await _rollback(client, campaign_id=campaign_id,
+                        ad_set_id=ad_set_id, ad_id=ad_id)
+        return {'success': False, 'step': step, 'error': act_adset['error']}
 
     return {
         'success':     True,
