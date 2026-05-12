@@ -18,7 +18,7 @@ from database import DB
 from services.proxy_manager import ProxyManager
 from services.redeem import generate_code
 
-DASHBOARD_PORT = int(os.environ.get('PORT', 8080))
+DASHBOARD_PORT = int(os.environ.get('PORT', 5000))
 
 db            = DB(str(BOT_DIR / 'data' / 'bot.db'))
 proxy_manager = ProxyManager(str(BOT_DIR / 'proxies.txt'))
@@ -195,6 +195,7 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', DASHBOARD_PORT)
+    # Allow all hosts for Replit proxy compatibility
     await site.start()
     print(f'🌐 Bot Dashboard يعمل على: http://0.0.0.0:{DASHBOARD_PORT}')
     print(f'📊 قاعدة البيانات: {BOT_DIR / "data" / "bot.db"}')
