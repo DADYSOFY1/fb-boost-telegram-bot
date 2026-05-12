@@ -56,7 +56,7 @@ class StandardAdGate(BaseGate):
         await state.update_data(proxy=proxy)
         await state.set_state(AdGateStates.waiting_cookies)
         await call.message.edit_text(
-            f"✅ <b>البروكسي:</b> {proxy}\n\n"
+            "✅ <b>البروكسي:</b> تم اختيار بروكسي من البوت تلقائياً\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
             "🔽 <b>الخطوة 2:</b> أرسل كوكيز فيسبوك\n\n"
             "📌 افتح فيسبوك في المتصفح وانسخ الكوكيز من Developer Tools",

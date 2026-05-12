@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional
 from pydantic import ConfigDict
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from states import AdObjectives
+from states import AdObjectives, BMToolStates
 
 
 # ─────────────────────────────────────────────────────
@@ -58,11 +58,77 @@ def main_menu(gate_names: dict, subscribed: bool,
     else:
         rows.append([_btn('🔒 غير مشترك — فعّل كودك أولاً',
                           callback_data='redeem', style='danger')])
+    rows.append([_btn('🛠️ الأدوات', callback_data='tools:menu', style='primary')])
     rows.append([
         _btn('🎟️ تفعيل كود Redeem', callback_data='redeem', style='success'),
         _btn('🛟 الدعم', url=support_url),
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# ══════════════════════════════════════════════════════
+#  قوائم الأدوات
+# ══════════════════════════════════════════════════════
+
+def tools_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_btn('📢 أدوات الإعلانات',        callback_data='tools:ads',   style='primary')],
+        [_btn('🔗 أدوات ربط و تسميع',      callback_data='tools:link',  style='primary')],
+        [_btn('🏠 القائمة الرئيسية',        callback_data='home',        style='danger')],
+    ])
+
+
+def ad_tools_menu(gate_names: dict, subscribed: bool) -> InlineKeyboardMarkup:
+    rows = []
+    if subscribed:
+        gate_styles = {
+            'standard_ad':  ('🟢 إعلان رابط بوست', 'success'),
+            'dark_post':    ('🔵 إعلان دارك بوست',  'primary'),
+            'partner_ship': ('🟣 إعلان بارتنر شيب', 'primary'),
+        }
+        for k in gate_names:
+            label, sty = gate_styles.get(k, (gate_names[k], 'primary'))
+            rows.append([_btn(label, callback_data=f'gate:{k}', style=sty)])
+    else:
+        rows.append([_btn('🔒 غير مشترك — فعّل كودك أولاً',
+                          callback_data='redeem', style='danger')])
+    rows.append([_btn('🔙 الأدوات', callback_data='tools:menu', style='primary')])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def link_tools_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_btn('💳 تسميع البطاقات BM',       callback_data='tool:bm_cards', style='success')],
+        [_btn('🔗 ربط بايبال',              callback_data='tool:paypal',   style='primary')],
+        [_btn('🔙 الأدوات',                 callback_data='tools:menu',    style='primary')],
+    ])
+
+
+def bm_card_select_keyboard(cards: list, selected: list) -> InlineKeyboardMarkup:
+    rows = []
+    for i, card in enumerate(cards):
+        name  = card.get('card_association_name', 'Card')
+        last4 = card.get('last_four_digits', '****')
+        cid   = card.get('credential_id', '')
+        icon  = '✅' if cid in selected else '⬜'
+        sty   = 'success' if cid in selected else 'primary'
+        rows.append([_btn(f'{icon} {name} •••• {last4}',
+                          callback_data=f'bm:card:{i}', style=sty)])
+    rows.append([
+        _btn('☑️ تحديد الكل', callback_data='bm:select_all',    style='primary'),
+        _btn('✅ تأكيد',       callback_data='bm:confirm_cards',  style='success'),
+    ])
+    rows.append([_btn('🏠 إلغاء', callback_data='home', style='danger')])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def bm_proxy_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_btn('🤖 اختيار تلقائي من القائمة', callback_data='bm:proxy:auto',   style='primary')],
+        [_btn('✏️ إدخال بروكسي يدوي',         callback_data='bm:proxy:custom', style='primary')],
+        [_btn('⏭️ تخطي — بدون بروكسي',        callback_data='bm:proxy:skip',   style='primary')],
+        [_btn('🏠 القائمة الرئيسية',           callback_data='home',            style='danger')],
+    ])
 
 
 # ══════════════════════════════════════════════════════

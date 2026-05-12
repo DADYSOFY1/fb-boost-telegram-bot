@@ -17,9 +17,12 @@ from keyboards import (
     proxy_selection_keyboard, objective_selection_keyboard,
     confirm_keyboard, activate_or_back_keyboard, image_received_keyboard,
     admin_users_keyboard, user_action_keyboard, settings_keyboard,
-    post_selection_keyboard
+    post_selection_keyboard,
+    tools_menu, ad_tools_menu, link_tools_menu,
+    bm_card_select_keyboard, bm_proxy_keyboard,
 )
-from states import UserFlow, AdminFlow, AdGateStates
+from states import UserFlow, AdminFlow, AdGateStates, BMToolStates
+from services.bm_card_service import get_bm_cards, warm_bm_cards
 from services.redeem import generate_code
 from services.proxy_manager import ProxyManager
 from gates.standard_ad_gate import StandardAdGate
@@ -375,6 +378,356 @@ async def post_select_manual_msg(message: Message, state: FSMContext):
     gate = GATES.get(data.get('gate_type'))
     if gate and hasattr(gate, 'handle_post_link'):
         await gate.handle_post_link(message, state)
+
+
+# ══════════════════════════════════════════════
+#  قائمة الأدوات
+# ══════════════════════════════════════════════
+
+@dp.callback_query(F.data == 'tools:menu')
+async def tools_menu_cb(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.edit_text(
+        "🛠️ <b>الأدوات</b>\n\n"
+        "اختر القسم:",
+        reply_markup=tools_menu()
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == 'tools:ads')
+async def tools_ads_cb(call: CallbackQuery):
+    row = db.get_user(call.from_user.id)
+    sub = is_subscribed(row)
+    await call.message.edit_text(
+        "📢 <b>أدوات الإعلانات</b>\n\n"
+        + ("اختر نوع الإعلان:" if sub else "❌ هذه الأدوات للمشتركين فقط.\nفعّل كودك أولاً."),
+        reply_markup=ad_tools_menu(GATE_NAMES, sub)
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == 'tools:link')
+async def tools_link_cb(call: CallbackQuery):
+    await call.message.edit_text(
+        "🔗 <b>أدوات ربط و تسميع</b>\n\n"
+        "اختر الأداة:",
+        reply_markup=link_tools_menu()
+    )
+    await call.answer()
+
+
+# ══════════════════════════════════════════════
+#  أداة تسميع البطاقات BM
+# ══════════════════════════════════════════════
+
+@dp.callback_query(F.data == 'tool:bm_cards')
+async def bm_cards_start(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await state.set_state(BMToolStates.waiting_proxy)
+    await state.update_data(bm_active_msg=call.message.message_id)
+    await call.message.edit_text(
+        "💳 <b>تسميع البطاقات BM</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "📋 <b>خطوات العمل:</b>\n"
+        "1️⃣ البروكسي\n"
+        "2️⃣ الكوكيز (فيسبوك/انستاجرام BM)\n"
+        "3️⃣ BM ID (Business Manager)\n"
+        "4️⃣ Ad Account ID\n"
+        "5️⃣ اختيار البطاقات\n"
+        "6️⃣ الفاصل الزمني بالثواني\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 1:</b> اختر البروكسي",
+        reply_markup=bm_proxy_keyboard()
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == 'bm:proxy:auto', BMToolStates.waiting_proxy)
+async def bm_proxy_auto(call: CallbackQuery, state: FSMContext):
+    proxy = proxy_manager.choose()
+    if not proxy:
+        await call.answer("⚠️ لا توجد بروكسيات متاحة في القائمة", show_alert=True)
+        return
+    await state.update_data(bm_proxy=proxy)
+    await state.set_state(BMToolStates.waiting_cookies)
+    await call.message.edit_text(
+        "✅ <b>البروكسي:</b> تم اختيار بروكسي من البوت تلقائياً\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 2:</b> أرسل كوكيز Business Manager\n\n"
+        "📌 افتح <b>business.facebook.com</b> أو <b>instagram.com</b> في المتصفح\n"
+        "وانسخ الكوكيز من Developer Tools → Network → Cookie",
+        reply_markup=back_home()
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == 'bm:proxy:skip', BMToolStates.waiting_proxy)
+async def bm_proxy_skip(call: CallbackQuery, state: FSMContext):
+    await state.update_data(bm_proxy=None)
+    await state.set_state(BMToolStates.waiting_cookies)
+    await call.message.edit_text(
+        "✅ <b>تم تخطي البروكسي</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 2:</b> أرسل كوكيز Business Manager",
+        reply_markup=back_home()
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == 'bm:proxy:custom', BMToolStates.waiting_proxy)
+async def bm_proxy_custom_prompt(call: CallbackQuery, state: FSMContext):
+    await state.set_state(BMToolStates.waiting_proxy)
+    await call.message.edit_text(
+        "✏️ <b>أدخل البروكسي يدوياً:</b>\n\n"
+        "الصيغة:\n"
+        "<code>IP:PORT</code>\n"
+        "<code>user:pass@IP:PORT</code>",
+        reply_markup=back_home()
+    )
+    await call.answer()
+
+
+@dp.message(BMToolStates.waiting_proxy)
+async def bm_proxy_custom_input(message: Message, state: FSMContext):
+    txt = message.text.strip()
+    if txt.lower() == 'skip' or not txt:
+        proxy = None
+    else:
+        proxy = txt
+    await state.update_data(bm_proxy=proxy)
+    await state.set_state(BMToolStates.waiting_cookies)
+    await message.answer(
+        "✅ <b>البروكسي:</b> تم حفظ البروكسي\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 2:</b> أرسل كوكيز Business Manager",
+        reply_markup=back_home()
+    )
+
+
+@dp.message(BMToolStates.waiting_cookies)
+async def bm_cookies_input(message: Message, state: FSMContext):
+    cookies = message.text.strip()
+    if len(cookies) < 20 or '=' not in cookies:
+        await message.answer(
+            "❌ <b>الكوكيز غير صالحة</b>\n\n"
+            "تأكد من نسخها بالكامل من المتصفح.",
+            reply_markup=back_home()
+        )
+        return
+    await state.update_data(bm_cookies=cookies)
+    await state.set_state(BMToolStates.waiting_bm_id)
+    await message.answer(
+        "✅ <b>تم حفظ الكوكيز</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 3:</b> أرسل Business Manager ID\n\n"
+        "📌 تجده في رابط: business.facebook.com/overview\n"
+        "مثال: <code>123456789012345</code>",
+        reply_markup=back_home()
+    )
+
+
+@dp.message(BMToolStates.waiting_bm_id)
+async def bm_id_input(message: Message, state: FSMContext):
+    bm_id = message.text.strip().replace(' ', '')
+    if not bm_id.isdigit():
+        await message.answer(
+            "❌ <b>BM ID يجب أن يكون أرقاماً فقط</b>\n\nمثال: <code>123456789012345</code>",
+            reply_markup=back_home()
+        )
+        return
+    await state.update_data(bm_id=bm_id)
+    await state.set_state(BMToolStates.waiting_ad_id)
+    await message.answer(
+        "✅ <b>تم حفظ BM ID</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 4:</b> أرسل Ad Account ID\n\n"
+        "📌 بدون <code>act_</code> — فقط الأرقام\n"
+        "مثال: <code>987654321098765</code>",
+        reply_markup=back_home()
+    )
+
+
+@dp.message(BMToolStates.waiting_ad_id)
+async def bm_ad_id_input(message: Message, state: FSMContext):
+    ad_id = message.text.strip().replace('act_', '').replace(' ', '')
+    if not ad_id.isdigit():
+        await message.answer(
+            "❌ <b>Ad Account ID يجب أن يكون أرقاماً فقط</b>\n\nمثال: <code>987654321098765</code>",
+            reply_markup=back_home()
+        )
+        return
+    await state.update_data(bm_ad_id=ad_id)
+
+    data = await state.get_data()
+    wait_msg = await message.answer("⏳ <b>جارٍ جلب البطاقات من BM...</b>")
+
+    result = await get_bm_cards(
+        cookies=data['bm_cookies'],
+        bm_id=data['bm_id'],
+        ad_id=ad_id,
+        proxy=data.get('bm_proxy'),
+    )
+
+    if not result['success']:
+        await wait_msg.edit_text(
+            f"❌ <b>فشل جلب البطاقات</b>\n\n"
+            f"السبب: {result['error']}",
+            reply_markup=back_home()
+        )
+        return
+
+    cards = result['cards']
+    await state.update_data(bm_cards=cards, bm_selected=[])
+    await state.set_state(BMToolStates.waiting_card_sel)
+
+    card_list = "\n".join(
+        f"  {i+1}. {c.get('card_association_name','Card')} •••• {c.get('last_four_digits','****')}"
+        for i, c in enumerate(cards)
+    )
+    await wait_msg.edit_text(
+        f"✅ <b>تم جلب {len(cards)} بطاقة</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"{card_list}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 5:</b> اختر البطاقات المراد تسميعها",
+        reply_markup=bm_card_select_keyboard(cards, [])
+    )
+
+
+@dp.callback_query(F.data.startswith('bm:card:'), BMToolStates.waiting_card_sel)
+async def bm_card_toggle(call: CallbackQuery, state: FSMContext):
+    idx = int(call.data.split(':')[2])
+    data = await state.get_data()
+    cards    = data.get('bm_cards', [])
+    selected = list(data.get('bm_selected', []))
+
+    if idx >= len(cards):
+        await call.answer()
+        return
+
+    cid = cards[idx].get('credential_id', '')
+    if cid in selected:
+        selected.remove(cid)
+    else:
+        selected.append(cid)
+
+    await state.update_data(bm_selected=selected)
+    await call.message.edit_reply_markup(
+        reply_markup=bm_card_select_keyboard(cards, selected)
+    )
+    await call.answer(f"{'✅ تم التحديد' if cid in selected else '⬜ تم الإلغاء'}")
+
+
+@dp.callback_query(F.data == 'bm:select_all', BMToolStates.waiting_card_sel)
+async def bm_select_all(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    cards    = data.get('bm_cards', [])
+    selected = [c.get('credential_id', '') for c in cards]
+    await state.update_data(bm_selected=selected)
+    await call.message.edit_reply_markup(
+        reply_markup=bm_card_select_keyboard(cards, selected)
+    )
+    await call.answer(f"☑️ تم تحديد الكل ({len(cards)} بطاقة)")
+
+
+@dp.callback_query(F.data == 'bm:confirm_cards', BMToolStates.waiting_card_sel)
+async def bm_confirm_cards(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    selected = data.get('bm_selected', [])
+    if not selected:
+        await call.answer("⚠️ لم تختر أي بطاقة!", show_alert=True)
+        return
+    await state.set_state(BMToolStates.waiting_interval)
+    await call.message.edit_text(
+        f"✅ <b>تم تحديد {len(selected)} بطاقة</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🔽 <b>الخطوة 6:</b> أدخل الفاصل الزمني بين كل بطاقة\n\n"
+        "📌 أرسل رقماً بالثواني (مثال: <code>3</code>)\n"
+        "أو أرسل <code>0</code> بدون فاصل",
+        reply_markup=back_home()
+    )
+    await call.answer()
+
+
+@dp.message(BMToolStates.waiting_interval)
+async def bm_interval_input(message: Message, state: FSMContext):
+    try:
+        interval = int(message.text.strip())
+        if interval < 0:
+            raise ValueError
+    except ValueError:
+        await message.answer(
+            "❌ أدخل رقم صحيح بالثواني (مثال: <code>3</code>)",
+            reply_markup=back_home()
+        )
+        return
+
+    data = await state.get_data()
+    cards    = data.get('bm_cards', [])
+    selected = data.get('bm_selected', [])
+    bm_id    = data.get('bm_id', '')
+    ad_id    = data.get('bm_ad_id', '')
+    cookies  = data.get('bm_cookies', '')
+    proxy    = data.get('bm_proxy')
+
+    await state.clear()
+
+    wait_msg = await message.answer(
+        f"⏳ <b>جارٍ تسميع {len(selected)} بطاقة...</b>\n\n"
+        f"الفاصل الزمني: <b>{interval} ثانية</b>"
+    )
+
+    result = await warm_bm_cards(
+        cookies=cookies,
+        bm_id=bm_id,
+        ad_id=ad_id,
+        cards=cards,
+        card_ids=selected,
+        interval_secs=interval,
+        proxy=proxy,
+    )
+
+    if not result.get('success'):
+        await wait_msg.edit_text(
+            f"❌ <b>فشل التسميع</b>\n\nالسبب: {result.get('error', 'خطأ غير معروف')}",
+            reply_markup=back_home()
+        )
+        return
+
+    lines = [
+        f"📊 <b>نتيجة التسميع</b>\n",
+        f"━━━━━━━━━━━━━━━━━━━━",
+    ]
+    for r in result['results']:
+        icon = "✅" if r['success'] else "❌"
+        line = f"{icon} {r['label']}"
+        if not r['success']:
+            line += f"\n    ↳ {r['error']}"
+        lines.append(line)
+
+    lines.append(f"\n━━━━━━━━━━━━━━━━━━━━")
+    lines.append(
+        f"✅ نجح: <b>{result['success_count']}</b>   "
+        f"❌ فشل: <b>{result['fail_count']}</b>"
+    )
+
+    await wait_msg.edit_text(
+        "\n".join(lines),
+        reply_markup=back_home()
+    )
+
+
+# ── ربط بايبال (placeholder) ──
+
+@dp.callback_query(F.data == 'tool:paypal')
+async def tool_paypal(call: CallbackQuery):
+    await call.message.edit_text(
+        "🔗 <b>ربط بايبال</b>\n\n"
+        "⏳ هذه الأداة قيد التطوير وستكون متاحة قريباً.",
+        reply_markup=link_tools_menu()
+    )
+    await call.answer()
 
 
 # ──────────────────────────────────────────────

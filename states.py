@@ -101,6 +101,15 @@ class AdObjectives:
         return obj_map.get(objective, "OUTCOME_ENGAGEMENT")
 
 
+class BMToolStates(StatesGroup):
+    waiting_proxy    = State()
+    waiting_cookies  = State()
+    waiting_bm_id    = State()
+    waiting_ad_id    = State()
+    waiting_card_sel = State()
+    waiting_interval = State()
+
+
 class GateConstants:
     MIN_BUDGET = 1.0
     MAX_BUDGET = 10000.0
