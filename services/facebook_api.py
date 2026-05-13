@@ -175,6 +175,12 @@ class FacebookAPIClient:
                         return {'success': False,
                                 'error': 'فيسبوك طلب تسجيل دخول — تحقق من الكوكيز',
                                 'raw': resp.text[:200]}
+                    if resp.status_code >= 400:
+                        return {
+                            'success': False,
+                            'error': f'رد غير JSON من Facebook (HTTP {resp.status_code})',
+                            'raw': resp.text[:300],
+                        }
 
                 try:
                     data = resp.json()
@@ -189,7 +195,11 @@ class FacebookAPIClient:
                     err = data.get('error', {})
                     msg = err.get('message') or err.get('error_user_msg') or f'HTTP {resp.status_code}'
                     code = err.get('code', '')
-                    return {'success': False, 'error': f'[{code}] {msg}' if code else msg, 'raw': data}
+                    detail = err.get('error_data', {}).get('error_details', '') if isinstance(err, dict) else ''
+                    error_msg = f'[{code}] {msg}' if code else msg
+                    if detail:
+                        error_msg += f' — {detail}'
+                    return {'success': False, 'error': error_msg, 'raw': data}
 
                 return {'success': True, 'data': data}
 
@@ -324,17 +334,35 @@ class FacebookAPIClient:
         """
         رفع صورة إلى Marketing API (act_{id}/adimages) وإرجاع image_hash.
         Facebook يقبل multipart upload مع اسم الملف كـ field name.
+        تكتشف نوع الملف تلقائياً من الامتداد.
         """
         import os
+
+        if not os.path.exists(image_path):
+            return {'success': False, 'error': f'الملف غير موجود: {image_path}'}
+
         with open(image_path, 'rb') as f:
             image_data = f.read()
 
         filename = os.path.basename(image_path) or 'image.jpg'
+        ext = os.path.splitext(filename)[1].lower()
+        mime_type_map = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+        }
+        mime_type = mime_type_map.get(ext, 'image/jpeg')
 
-        # Facebook adimages API: field name = filename, value = raw bytes
+        file_size_mb = len(image_data) / (1024 * 1024)
+        if file_size_mb > 10:
+            return {'success': False, 'error': f'حجم الصورة {file_size_mb:.1f}MB يتجاوز الحد الأقصى 10MB'}
+
         result = await self._request(
             'POST', f'act_{ad_account_id}/adimages',
-            files={filename: (filename, image_data, 'image/jpeg')},
+            files={'file': (filename, image_data, mime_type)},
         )
         if not result['success']:
             return result
