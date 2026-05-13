@@ -319,29 +319,31 @@ class FacebookAPIClient:
 
     # ─────────────── Creative ───────────────
 
-    async def upload_photo(self, page_id: str, image_path: str,
-                           caption: str) -> Dict[str, Any]:
+    async def upload_ad_image(self, ad_account_id: str,
+                              image_path: str) -> Dict[str, Any]:
+        """
+        رفع صورة إلى Marketing API (act_{id}/adimages) وإرجاع image_hash.
+        يعمل مع الكوكيز مباشرةً لأنه endpoint إعلاني وليس Graph عادي.
+        """
+        import base64
         with open(image_path, 'rb') as f:
-            image_data = f.read()
-        async with httpx.AsyncClient(
-            timeout=120, proxies=self.proxies, follow_redirects=True
-        ) as client:
-            resp = await client.post(
-                f'{self.base_url}/{page_id}/photos',
-                headers=self._get_headers(),
-                cookies=self.cookies_dict,
-                data={'caption': caption, 'published': 'false'},
-                files={'source': ('image.jpg', image_data, 'image/jpeg')}
-            )
-            try:
-                data = resp.json()
-            except Exception:
-                return {'success': False,
-                        'error': f'رد غير JSON عند رفع الصورة (HTTP {resp.status_code})'}
-            if resp.status_code == 200 and 'id' in data:
-                return {'success': True, 'photo_id': data['id'], 'data': data}
-            err = data.get('error', {}).get('message', f'HTTP {resp.status_code}')
-            return {'success': False, 'error': err}
+            image_b64 = base64.b64encode(f.read()).decode()
+
+        result = await self._request(
+            'POST', f'act_{ad_account_id}/adimages',
+            data={'bytes': image_b64},
+        )
+        if not result['success']:
+            return result
+
+        images = result['data'].get('images', {})
+        # المفتاح الأول هو hash الصورة
+        for _name, info in images.items():
+            img_hash = info.get('hash')
+            if img_hash:
+                return {'success': True, 'image_hash': img_hash, 'data': info}
+
+        return {'success': False, 'error': 'لم يُرجع Facebook image_hash بعد الرفع'}
 
     async def create_ad_creative_post(
         self, ad_account_id: str, page_id: str,
@@ -362,7 +364,7 @@ class FacebookAPIClient:
 
     async def create_ad_creative_dark_post(
         self, ad_account_id: str, page_id: str,
-        photo_id: str, caption: str, objective: str
+        image_hash: str, caption: str, objective: str
     ) -> Dict[str, Any]:
         cta_type = AdObjectives.get_cta_type(objective)
         result = await self._request(
@@ -372,7 +374,7 @@ class FacebookAPIClient:
                 'object_story_spec': {
                     'page_id': page_id,
                     'photo_data': {
-                        'photo_id':        photo_id,
+                        'image_hash':      image_hash,
                         'message':         caption,
                         'call_to_action':  {'type': cta_type},
                     }
@@ -527,7 +529,7 @@ async def _run_ad_core(
     campaign_name: str,
     page_id:       str,
     objective:     str,
-    photo_id:      Optional[str] = None,
+    image_hash:    Optional[str] = None,
     partner_page_id: Optional[str] = None,
     partner_post_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -568,9 +570,9 @@ async def _run_ad_core(
 
     # ── 4. Creative ──
     step = "إنشاء Creative"
-    if photo_id:
+    if image_hash:
         creative = await client.create_ad_creative_dark_post(
-            data['ad_account_id'], page_id, photo_id, data.get('caption', ''), objective)
+            data['ad_account_id'], page_id, image_hash, data.get('caption', ''), objective)
     elif partner_page_id and partner_post_id:
         creative = await client.create_ad_creative_partner(
             data['ad_account_id'], page_id, partner_page_id, partner_post_id, objective)
@@ -650,19 +652,19 @@ async def run_dark_post_ad(data: dict) -> Dict[str, Any]:
     client        = FacebookAPIClient(data['cookies'], data.get('proxy'))
     page_id       = data['page_id']
     campaign_name = f"DarkPost - {page_id[:8]}"
-    photo_id      = None
+    image_hash    = None
 
     if data.get('image_path'):
-        step  = "رفع الصورة"
-        photo = await client.upload_photo(page_id, data['image_path'], data.get('caption', ''))
-        if not photo['success']:
-            return {'success': False, 'step': step, 'error': photo['error']}
-        photo_id = photo['photo_id']
+        step   = "رفع الصورة"
+        upload = await client.upload_ad_image(data['ad_account_id'], data['image_path'])
+        if not upload['success']:
+            return {'success': False, 'step': step, 'error': upload['error']}
+        image_hash = upload['image_hash']
 
     result = await _run_ad_core(client, data, campaign_name, page_id, data['objective'],
-                                photo_id=photo_id)
+                                image_hash=image_hash)
     if result['success']:
-        result['photo_id'] = photo_id
+        result['image_hash'] = image_hash
     return result
 
 
@@ -671,19 +673,19 @@ async def run_dark_post_ad_then_pause(data: dict) -> Dict[str, Any]:
     client        = FacebookAPIClient(data['cookies'], data.get('proxy'))
     page_id       = data['page_id']
     campaign_name = f"DarkPost - {page_id[:8]}"
-    photo_id      = None
+    image_hash    = None
 
     if data.get('image_path'):
-        step  = "رفع الصورة"
-        photo = await client.upload_photo(page_id, data['image_path'], data.get('caption', ''))
-        if not photo['success']:
-            return {'success': False, 'step': step, 'error': photo['error']}
-        photo_id = photo['photo_id']
+        step   = "رفع الصورة"
+        upload = await client.upload_ad_image(data['ad_account_id'], data['image_path'])
+        if not upload['success']:
+            return {'success': False, 'step': step, 'error': upload['error']}
+        image_hash = upload['image_hash']
 
     result = await _run_ad_core(client, data, campaign_name, page_id, data['objective'],
-                                photo_id=photo_id)
+                                image_hash=image_hash)
     if result['success']:
-        result['photo_id'] = photo_id
+        result['image_hash'] = image_hash
         await _pause_all(client, result['campaign_id'],
                          result['ad_set_id'], result['ad_id'])
         result['paused'] = True
