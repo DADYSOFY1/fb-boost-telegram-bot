@@ -404,11 +404,11 @@ class FacebookAPIClient:
                 'object_story_spec': {
                     'page_id': page_id,
                     'photo_data': {
-                        'image_hash':      image_hash,
-                        'message':         caption,
-                        'call_to_action':  {'type': cta_type},
+                        'image_hash': image_hash,
+                        'message':    caption,
                     }
-                }
+                },
+                'call_to_action': {'type': cta_type},
             }
         )
         if result['success']:
