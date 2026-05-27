@@ -34,7 +34,7 @@ TOKEN        = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 ADMIN_PASS   = 'Nemo@1986'
 ADMIN_CMD    = 'beshoy'
 BOT_NAME     = os.environ.get('BOT_NAME',    '⚡ FB Boost Bot')
-SUPPORT_URL  = os.environ.get('SUPPORT_URL', 'https://t.me/')
+SUPPORT_URL  = os.environ.get('SUPPORT_URL', 'https://t.me/BaBa_MeDia_0')
 
 GATE_NAMES = {
     'standard_ad':  '🟢 إعلان رابط بوست',
