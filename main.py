@@ -30,7 +30,7 @@ from gates.standard_ad_gate import StandardAdGate
 from gates.dark_post_gate import DarkPostGate
 from gates.partner_ship_gate import PartnerShipGate
 
-TOKEN        = ('8709244199:AAGtMXpqXVtj3KHCkcEnxa8rk3WS6KIOR1M')
+TOKEN        = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 ADMIN_PASS   = 'Nemo@1986'
 ADMIN_CMD    = 'beshoy'
 BOT_NAME     = os.environ.get('BOT_NAME',    '⚡ FB Boost Bot')
