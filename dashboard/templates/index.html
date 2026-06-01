@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FB Boost Bot — لوحة التحكم</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #30363d;
+    --blue: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --purple: #bc8cff; --text: #e6edf3;
+    --muted: #8b949e;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, sans-serif; min-height: 100vh; }
+  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
+  header .logo { font-size: 28px; }
+  header h1 { font-size: 20px; color: var(--blue); }
+  header span { color: var(--muted); font-size: 13px; }
+  .badge { background: var(--green); color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 12px; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; transition: transform .2s; }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card .icon { font-size: 32px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 36px; font-weight: 700; }
+  .stat-card .label { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .blue .value { color: var(--blue); }
+  .green .value { color: var(--green); }
+  .red .value { color: var(--red); }
+  .yellow .value { color: var(--yellow); }
+  .purple .value { color: var(--purple); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+  @media(max-width:768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .card h2 { font-size: 16px; color: var(--blue); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; transition: border-color .2s;
+  }
+  .form-group input:focus, .form-group textarea:focus { border-color: var(--blue); }
+  textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: opacity .2s; }
+  .btn:hover { opacity: .85; }
+  .btn-blue   { background: var(--blue); color: #000; }
+  .btn-green  { background: var(--green); color: #000; }
+  .btn-red    { background: var(--red); color: #fff; }
+  .btn-yellow { background: var(--yellow); color: #000; }
+  .btn-purple { background: var(--purple); color: #000; }
+  .btn-full   { width: 100%; justify-content: center; }
+  .btn-sm     { padding: 6px 14px; font-size: 12px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { color: var(--muted); font-weight: 600; text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(88,166,255,.04); }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+  .tag-green  { background: rgba(63,185,80,.15); color: var(--green); }
+  .tag-red    { background: rgba(248,81,73,.15); color: var(--red); }
+  .tag-blue   { background: rgba(88,166,255,.15); color: var(--blue); }
+  .tag-muted  { background: rgba(139,148,158,.15); color: var(--muted); }
+
+  .alert { border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; display: none; }
+  .alert-success { background: rgba(63,185,80,.15); border: 1px solid var(--green); color: var(--green); }
+  .alert-error   { background: rgba(248,81,73,.15); border: 1px solid var(--red); color: var(--red); }
+  .alert.show { display: block; }
+
+  .code-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-family: monospace; font-size: 18px; letter-spacing: 2px; color: var(--yellow); text-align: center; margin: 12px 0; cursor: pointer; }
+  .code-box:hover { border-color: var(--yellow); }
+
+  .proxy-list { font-family: monospace; font-size: 12px; color: var(--muted); max-height: 200px; overflow-y: auto; }
+  .proxy-item { padding: 4px 0; border-bottom: 1px solid var(--border); }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; border: 1px solid var(--border); color: var(--muted); background: transparent; transition: all .2s; }
+  .tab.active { background: var(--blue); border-color: var(--blue); color: #000; font-weight: 600; }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #refreshBtn { position: fixed; bottom: 24px; left: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; transition: background .2s; }
+  #refreshBtn:hover { background: var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡</div>
+  <div>
+    <h1>FB Boost Bot — لوحة التحكم</h1>
+    <span>إدارة كاملة للبوت والمشتركين</span>
+  </div>
+  <div style="margin-right:auto">
+    <span class="badge" id="botStatus">🟢 يعمل</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card blue"><div class="icon">👥</div><div class="value" id="s_users">—</div><div class="label">مشتركون نشطون</div></div>
+    <div class="stat-card green"><div class="icon">📈</div><div class="value" id="s_requests">—</div><div class="label">إجمالي الطلبات</div></div>
+    <div class="stat-card yellow"><div class="icon">🎟️</div><div class="value" id="s_codes">—</div><div class="label">أكواد Redeem</div></div>
+    <div class="stat-card purple"><div class="icon">🆕</div><div class="value" id="s_unused">—</div><div class="label">أكواد غير مستخدمة</div></div>
+    <div class="stat-card red"><div class="icon">🗑️</div><div class="value" id="s_removed">—</div><div class="label">محذوفون</div></div>
+  </div>
+
+  <div class="grid-2">
+
+    <!-- Redeem Code Generator -->
+    <div class="card">
+      <h2>🎟️ توليد كود Redeem</h2>
+      <div id="codeAlert" class="alert"></div>
+      <div class="form-group">
+        <label>مدة الاشتراك (ساعات)</label>
+        <input type="number" id="codeHours" value="168" min="1" max="8760" placeholder="168 = أسبوع">
+      </div>
+      <div class="form-group">
+        <label>تسمية الكود (اختياري)</label>
+        <input type="text" id="codeLabel" placeholder="مثال: VIP Week">
+      </div>
+      <button class="btn btn-green btn-full" onclick="generateCode()">
+        ✨ توليد كود جديد
+      </button>
+      <div id="generatedCode" style="display:none">
+        <div class="code-box" id="codeValue" title="اضغط للنسخ" onclick="copyCode()">—</div>
+        <div style="text-align:center;color:var(--muted);font-size:12px">اضغط على الكود للنسخ</div>
+      </div>
+    </div>
+
+    <!-- Add/Extend Subscriber -->
+    <div class="card">
+      <h2>👤 إضافة / تمديد مشترك</h2>
+      <div id="userAlert" class="alert"></div>
+      <div class="form-group">
+        <label>Telegram User ID</label>
+        <input type="number" id="manageUserId" placeholder="123456789">
+      </div>
+      <div class="form-group">
+        <label>اسم مخصص</label>
+        <input type="text" id="manageUserName" placeholder="VIP User">
+      </div>
+      <div class="form-group">
+        <label>عدد الساعات</label>
+        <input type="number" id="manageUserHours" value="168" min="1">
+      </div>
+      <button class="btn btn-blue btn-full" onclick="manageUser()">
+        💾 حفظ المشترك
+      </button>
+    </div>
+
+    <!-- Broadcast -->
+    <div class="card">
+      <h2>📢 رسالة جماعية</h2>
+      <div id="broadcastAlert" class="alert"></div>
+      <div class="form-group">
+        <label>نص الرسالة</label>
+        <textarea id="broadcastMsg" placeholder="اكتب رسالتك هنا..."></textarea>
+      </div>
+      <button class="btn btn-yellow btn-full" onclick="sendBroadcast()">
+        📤 إرسال للجميع
+      </button>
+    </div>
+
+    <!-- Proxies -->
+    <div class="card">
+      <h2>🌐 إدارة البروكسيات</h2>
+      <div id="proxyAlert" class="alert"></div>
+      <div class="form-group">
+        <label>أضف بروكسيات (كل سطر بروكسي)</label>
+        <textarea id="proxyInput" placeholder="1.2.3.4:8080&#10;user:pass@5.6.7.8:3128"></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue" style="flex:1" onclick="addProxies()">➕ إضافة</button>
+        <button class="btn btn-red" style="flex:1" onclick="clearProxies()">🗑️ مسح الكل</button>
+      </div>
+      <div style="margin-top:16px">
+        <div style="color:var(--muted);font-size:12px;margin-bottom:8px">البروكسيات الحالية (<span id="proxyCount">0</span>)</div>
+        <div class="proxy-list" id="proxyList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Users Table -->
+  <div class="card" style="margin-bottom:24px">
+    <h2>👥 المشتركون</h2>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <input type="text" id="searchUser" placeholder="🔍 بحث..." style="max-width:250px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);outline:none" oninput="filterUsers()">
+      <button class="btn btn-blue btn-sm" onclick="loadUsers()">🔄 تحديث</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>الاسم</th>
+            <th>يوزرنيم</th>
+            <th>الاشتراك</th>
+            <th>تاريخ الانضمام</th>
+            <th>إجراء</th>
+          </tr>
+        </thead>
+        <tbody id="usersTable">
+          <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">جاري التحميل...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Codes Table -->
+  <div class="card">
+    <h2>🎟️ أكواد Redeem</h2>
+    <div style="margin-bottom:12px">
+      <button class="btn btn-blue btn-sm" onclick="loadCodes()">🔄 تحديث</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>الكود</th><th>التسمية</th><th>المدة</th><th>الحالة</th><th>تاريخ الإنشاء</th></tr>
+        </thead>
+        <tbody id="codesTable">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">جاري التحميل...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<button id="refreshBtn" onclick="loadAll()" title="تحديث">🔄</button>
+
+<script>
+const API = '';
+let allUsers = [];
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  return r.json();
+}
+
+function showAlert(id, msg, type='success') {
+  const el = document.getElementById(id);
+  el.className = `alert alert-${type} show`;
+  el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+async function loadStats() {
+  const d = await api('/api/stats');
+  document.getElementById('s_users').textContent    = d.users    ?? '—';
+  document.getElementById('s_requests').textContent = d.requests ?? '—';
+  document.getElementById('s_codes').textContent    = d.codes    ?? '—';
+  document.getElementById('s_unused').textContent   = d.unused   ?? '—';
+  document.getElementById('s_removed').textContent  = d.removed  ?? '—';
+}
+
+async function loadUsers() {
+  const d = await api('/api/users');
+  allUsers = d.users || [];
+  renderUsers(allUsers);
+}
+
+function filterUsers() {
+  const q = document.getElementById('searchUser').value.toLowerCase();
+  renderUsers(allUsers.filter(u =>
+    String(u.user_id).includes(q) ||
+    (u.first_name||'').toLowerCase().includes(q) ||
+    (u.custom_name||'').toLowerCase().includes(q) ||
+    (u.username||'').toLowerCase().includes(q)
+  ));
+}
+
+function renderUsers(users) {
+  const tb = document.getElementById('usersTable');
+  if (!users.length) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">لا يوجد مستخدمون</td></tr>'; return; }
+  tb.innerHTML = users.map(u => {
+    const sub = u.subscription_until ? new Date(u.subscription_until) : null;
+    const now = new Date();
+    const active = sub && sub > now;
+    const subText = sub ? sub.toLocaleDateString('ar') : 'بدون';
+    const tag = active ? '<span class="tag tag-green">✅ نشط</span>' : '<span class="tag tag-red">❌ منتهي</span>';
+    const name = u.custom_name || u.first_name || `user_${u.user_id}`;
+    return `<tr>
+      <td><code>${u.user_id}</code></td>
+      <td>${name}</td>
+      <td>${u.username ? '@'+u.username : '—'}</td>
+      <td>${tag}<br><small style="color:var(--muted)">${subText}</small></td>
+      <td><small>${u.joined_at||'—'}</small></td>
+      <td>
+        <button class="btn btn-blue btn-sm" onclick="quickExtend(${u.user_id}, '${name}')">+168h</button>
+        <button class="btn btn-red btn-sm" onclick="removeUser(${u.user_id})">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadCodes() {
+  const d = await api('/api/codes');
+  const tb = document.getElementById('codesTable');
+  const codes = d.codes || [];
+  if (!codes.length) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">لا توجد أكواد</td></tr>'; return; }
+  tb.innerHTML = codes.map(c => {
+    const used = c.used_by ? `<span class="tag tag-muted">✅ مستخدم</span>` : `<span class="tag tag-green">🆕 متاح</span>`;
+    return `<tr>
+      <td><code style="color:var(--yellow)">${c.code}</code></td>
+      <td>${c.label||'—'}</td>
+      <td>${c.duration_hours}h</td>
+      <td>${used}</td>
+      <td><small>${c.created_at||'—'}</small></td>
+    </tr>`;
+  }).join('');
+}
+
+function maskProxy(p) {
+  if (p.includes('@')) {
+    const atIdx = p.indexOf('@');
+    const creds = p.substring(0, atIdx);
+    const rest  = p.substring(atIdx + 1);
+    const colon = creds.indexOf(':');
+    const user  = colon >= 0 ? creds.substring(0, colon) : creds;
+    return `${user}:****@${rest}`;
+  }
+  return p;
+}
+
+async function loadProxies() {
+  const d = await api('/api/proxies');
+  const list = d.proxies || [];
+  document.getElementById('proxyCount').textContent = list.length;
+  const el = document.getElementById('proxyList');
+  el.innerHTML = list.length ? list.map(p => `<div class="proxy-item">🌐 ${maskProxy(p)}</div>`).join('') : '<div style="color:var(--muted);padding:8px">لا توجد بروكسيات</div>';
+}
+
+async function generateCode() {
+  const hours = parseInt(document.getElementById('codeHours').value);
+  const label = document.getElementById('codeLabel').value;
+  if (!hours || hours < 1) { showAlert('codeAlert','أدخل عدد ساعات صحيح','error'); return; }
+  const d = await api('/api/codes', 'POST', { hours, label });
+  if (d.code) {
+    document.getElementById('codeValue').textContent = d.code;
+    document.getElementById('generatedCode').style.display = 'block';
+    showAlert('codeAlert', `✅ تم توليد الكود بنجاح — ${hours} ساعة`, 'success');
+    loadCodes(); loadStats();
+  } else {
+    showAlert('codeAlert', d.error || 'خطأ', 'error');
+  }
+}
+
+function copyCode() {
+  const code = document.getElementById('codeValue').textContent;
+  navigator.clipboard.writeText(code).then(() => showAlert('codeAlert','✅ تم نسخ الكود','success'));
+}
+
+async function manageUser() {
+  const user_id = parseInt(document.getElementById('manageUserId').value);
+  const name = document.getElementById('manageUserName').value;
+  const hours = parseInt(document.getElementById('manageUserHours').value);
+  if (!user_id) { showAlert('userAlert','أدخل User ID صحيح','error'); return; }
+  const d = await api('/api/users', 'POST', { user_id, name, hours });
+  if (d.success) { showAlert('userAlert', `✅ تم تعيين ${name || user_id} لمدة ${hours} ساعة`, 'success'); loadUsers(); loadStats(); }
+  else showAlert('userAlert', d.error || 'خطأ', 'error');
+}
+
+async function quickExtend(user_id, name) {
+  const d = await api('/api/users', 'POST', { user_id, name, hours: 168 });
+  if (d.success) { showAlert('userAlert', `✅ تم تمديد ${name} بـ 168 ساعة`, 'success'); loadUsers(); }
+}
+
+async function removeUser(user_id) {
+  if (!confirm(`هل تريد حذف ${user_id}؟`)) return;
+  const d = await api(`/api/users/${user_id}`, 'DELETE');
+  if (d.success) { showAlert('userAlert', '✅ تم الحذف', 'success'); loadUsers(); loadStats(); }
+}
+
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcastMsg').value.trim();
+  if (!msg) { showAlert('broadcastAlert','اكتب رسالة أولاً','error'); return; }
+  if (!confirm(`إرسال هذه الرسالة لجميع المستخدمين؟`)) return;
+  const d = await api('/api/broadcast', 'POST', { message: msg });
+  if (d.sent !== undefined) showAlert('broadcastAlert', `✅ تم الإرسال — نجح: ${d.sent} | فشل: ${d.failed}`, 'success');
+  else showAlert('broadcastAlert', d.error || 'خطأ', 'error');
+}
+
+async function addProxies() {
+  const text = document.getElementById('proxyInput').value.trim();
+  if (!text) { showAlert('proxyAlert','أدخل بروكسيات أولاً','error'); return; }
+  const d = await api('/api/proxies', 'POST', { proxies: text });
+  if (d.added !== undefined) { showAlert('proxyAlert', `✅ تمت إضافة ${d.added} بروكسي`, 'success'); document.getElementById('proxyInput').value = ''; loadProxies(); }
+  else showAlert('proxyAlert', d.error||'خطأ', 'error');
+}
+
+async function clearProxies() {
+  if (!confirm('هل تريد مسح جميع البروكسيات؟')) return;
+  const d = await api('/api/proxies', 'DELETE');
+  if (d.success) { showAlert('proxyAlert','✅ تم مسح جميع البروكسيات','success'); loadProxies(); }
+}
+
+function loadAll() { loadStats(); loadUsers(); loadCodes(); loadProxies(); }
+window.onload = loadAll;
+setInterval(loadStats, 30000);
+</script>
+</body>
+</html>
