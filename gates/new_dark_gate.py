@@ -4,9 +4,9 @@ from pathlib import Path
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from keyboards import (
-    back_home, proxy_selection_keyboard, back_to_proxy, 
-    nd_country_keyboard, nd_goal_keyboard, nd_gender_keyboard,
-    cancel_keyboard, nd_confirm_keyboard
+    back_home, proxy_selection_keyboard, back_to_proxy,
+    nd_country_keyboard, nd_goal_keyboard, nd_age_keyboard, nd_gender_keyboard,
+    image_received_keyboard, cancel_keyboard, nd_confirm_keyboard
 )
 from states import NewDarkStates, GateConstants
 from gates.base_gate import BaseGate
@@ -143,11 +143,21 @@ class NewDarkGate(BaseGate):
     async def handle_gender(self, call, state, gender):
         await state.update_data(gender=gender)
         await state.set_state(NewDarkStates.waiting_image)
-        await self._upd(call, state, 
+        await self._upd(call, state,
             "✅ تم حفظ الاستهداف\n\n"
             "🔽 <b>الخطوة 9:</b> أرسل صورة الإعلان (اختياري)\n"
-            "أو اضغط تخطي", 
-            kb=cancel_keyboard())
+            "أو اضغط ⏭️ تخطي الصورة",
+            kb=image_received_keyboard())
+
+    # ────── Image Back (re-upload) ──────
+    async def handle_image_back(self, call, state):
+        data = await state.get_data()
+        self.cleanup_temp_files(data.get("image_path"))
+        await state.update_data(image_path=None)
+        await state.set_state(NewDarkStates.waiting_image)
+        await self._upd(call, state,
+            "🔄 <b>أعد إرسال الصورة</b>\nأو اضغط ⏭️ تخطي الصورة",
+            kb=image_received_keyboard())
 
     # ────── Image (Optional) ──────
     async def handle_image(self, message, state):
