@@ -109,22 +109,31 @@ class NewDarkGate(BaseGate):
         await state.update_data(goal=goal)
         await state.set_state(NewDarkStates.waiting_age)
         gname = GOAL_DISPLAY.get(goal, goal)
-        await self._upd(call, state, f"✅ <b>الهدف:</b> {gname}\n\n🔽 <b>الخطوة 7:</b> أدخل نطاق العمر\nمثال: <code>18-45</code>", kb=cancel_keyboard())
+        await self._upd(
+            call,
+            state,
+            f"✅ <b>الهدف:</b> {gname}\n\n🔽 <b>الخطوة 7:</b> اختر نطاق العمر\nيمكنك كتابة مثال: <code>18-45</code>",
+            kb=nd_age_keyboard()
+        )
 
-    async def handle_age(self, message, state):
+    async def handle_age(self, message_or_call, state):
+        if isinstance(message_or_call, CallbackQuery):
+            age_range = ':'.join(message_or_call.data.split(':')[2:])
+        else:
+            age_range = message_or_call.text.strip()
+
         try:
-            age_range = message.text.strip()
             if '-' in age_range:
                 min_age, max_age = map(int, age_range.split('-'))
             else:
                 min_age = max_age = int(age_range)
             await state.update_data(age_min=min_age, age_max=max_age)
-        except:
-            await self._upd(message, state, "❌ صيغة خاطئة. مثال: 18-45", kb=cancel_keyboard())
+        except Exception:
+            await self._upd(message_or_call, state, "❌ صيغة خاطئة. مثال: 18-45", kb=cancel_keyboard())
             return
 
         await state.set_state(NewDarkStates.waiting_gender)
-        await self._upd(message, state, "🔽 <b>الخطوة 8:</b> اختر الجنس", kb=nd_gender_keyboard())
+        await self._upd(message_or_call, state, "🔽 <b>الخطوة 8:</b> اختر الجنس", kb=nd_gender_keyboard())
 
     async def handle_gender(self, call, state, gender):
         await state.update_data(gender=gender)

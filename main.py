@@ -1293,6 +1293,22 @@ async def nd_gl(call:CallbackQuery,state:FSMContext):
     if not await _check_session(call,state): return
     await new_dark_gate.handle_goal(call,state,call.data.split(':',2)[2]); await call.answer()
 
+@dp.callback_query(F.data.startswith('nd:age:'),NewDarkStates.waiting_age)
+async def nd_age_cb(call:CallbackQuery,state:FSMContext):
+    if not await _check_session(call,state): return
+    await new_dark_gate.handle_age(call,state)
+    await call.answer()
+
+@dp.message(NewDarkStates.waiting_age)
+async def nd_age(m:Message,state:FSMContext):
+    await new_dark_gate.handle_age(m,state)
+
+@dp.callback_query(F.data.startswith('nd:gender:'),NewDarkStates.waiting_gender)
+async def nd_gender_cb(call:CallbackQuery,state:FSMContext):
+    if not await _check_session(call,state): return
+    await new_dark_gate.handle_gender(call,state,call.data.split(':',2)[2])
+    await call.answer()
+
 @dp.message(NewDarkStates.waiting_image)
 async def nd_im(m:Message,state:FSMContext): await new_dark_gate.handle_image(m,state)
 
