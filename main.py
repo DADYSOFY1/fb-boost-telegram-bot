@@ -764,6 +764,8 @@ async def bm_ad_id_input(message: Message, state: FSMContext):
         "🔽 <b>الخطوة 5:</b> اختر البطاقات المراد تسميعها",
         reply_markup=bm_card_select_keyboard(cards, [])
     )
+    # ✅ تحديث active_msg_id لرسالة البطاقات الجديدة
+    await state.update_data(active_msg_id=wait_msg.message_id)
 
 
 @dp.callback_query(F.data.startswith('bm:card:'), BMToolStates.waiting_card_sel)
