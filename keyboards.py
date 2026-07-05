@@ -317,6 +317,12 @@ def settings_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_btn('🛑 إلغاء', callback_data='home', style='danger')],
+    ])
+
+
 # == New Dark keyboards ==
 def nd_country_keyboard() -> InlineKeyboardMarkup:
     rows,row=[],[]
