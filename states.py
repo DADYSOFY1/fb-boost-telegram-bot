@@ -110,8 +110,8 @@ class NewDarkStates(StatesGroup):
     waiting_page_id = State()
     waiting_country = State()
     waiting_goal = State()
-    waiting_age = State()           # ← جديد
-    waiting_gender = State()        # ← جديد
+    waiting_age = State()           # جديد
+    waiting_gender = State()        # جديد
     waiting_image = State()
     waiting_caption = State()
     waiting_daily_budget = State()

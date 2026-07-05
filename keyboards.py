@@ -256,13 +256,6 @@ def back_admin() -> InlineKeyboardMarkup:
     ])
 
 
-def cancel_keyboard() -> InlineKeyboardMarkup:
-    """لوحة إلغاء العملية للـ New Dark Gate."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [_btn("🏠 إلغاء", callback_data="home", style="danger")],
-    ])
-
-
 # ══════════════════════════════════════════════════════
 #  لوحة تحكم الأدمن
 # ══════════════════════════════════════════════════════
@@ -343,40 +336,21 @@ def nd_goal_keyboard() -> InlineKeyboardMarkup:
         [_btn("🏠 إلغاء",callback_data="home",style="danger")],])
 
 def nd_age_keyboard() -> InlineKeyboardMarkup:
-    """اختيار الفئة العمرية للإعلان."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            _btn("18 - 24", callback_data="nd:age:18:24", style="primary"),
-            _btn("25 - 34", callback_data="nd:age:25:34", style="primary"),
-        ],
-        [
-            _btn("35 - 44", callback_data="nd:age:35:44", style="primary"),
-            _btn("45 - 54", callback_data="nd:age:45:54", style="primary"),
-        ],
-        [
-            _btn("55 - 65", callback_data="nd:age:55:65", style="primary"),
-            _btn("18 - 65 (الكل)", callback_data="nd:age:18:65", style="success"),
-        ],
+        [_btn("18 - 24", callback_data="nd:age:18:24", style="primary"), _btn("25 - 34", callback_data="nd:age:25:34", style="primary")],
+        [_btn("35 - 44", callback_data="nd:age:35:44", style="primary"), _btn("45 - 54", callback_data="nd:age:45:54", style="primary")],
+        [_btn("55 - 65", callback_data="nd:age:55:65", style="primary"), _btn("18 - 65 (الكل)", callback_data="nd:age:18:65", style="success")],
         [_btn("🏠 إلغاء", callback_data="home", style="danger")],
     ])
 
-
 def nd_gender_keyboard() -> InlineKeyboardMarkup:
-    """اختيار الجنس المستهدف للإعلان."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            _btn("👨 رجال فقط",  callback_data="nd:gender:MALE",   style="primary"),
-            _btn("👩 نساء فقط",  callback_data="nd:gender:FEMALE", style="primary"),
-        ],
+        [_btn("👨 رجال فقط", callback_data="nd:gender:MALE", style="primary"), _btn("👩 نساء فقط", callback_data="nd:gender:FEMALE", style="primary")],
         [_btn("👥 الجميع (بدون تحديد)", callback_data="nd:gender:ALL", style="success")],
         [_btn("🏠 إلغاء", callback_data="home", style="danger")],
     ])
 
-
 def nd_confirm_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            _btn("✅ نشر + إيقاف فوري", callback_data="nd:confirm:yes", style="success"),
-            _btn("❌ إلغاء",             callback_data="nd:confirm:no",  style="danger"),
-        ],
+        [_btn("✅ نشر + إيقاف فوري", callback_data="nd:confirm:yes", style="success"), _btn("❌ إلغاء", callback_data="nd:confirm:no", style="danger")],
     ])

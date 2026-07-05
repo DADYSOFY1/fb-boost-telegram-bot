@@ -4,15 +4,13 @@ from pathlib import Path
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from keyboards import (
-    back_home, proxy_selection_keyboard, back_to_proxy,
-    nd_country_keyboard, nd_goal_keyboard, nd_age_keyboard, nd_gender_keyboard,
-    image_received_keyboard, cancel_keyboard, nd_confirm_keyboard
+    back_home, proxy_selection_keyboard, back_to_proxy, 
+    nd_country_keyboard, nd_goal_keyboard, nd_gender_keyboard,
+    cancel_keyboard, nd_confirm_keyboard
 )
 from states import NewDarkStates, GateConstants
 from gates.base_gate import BaseGate
 from services.new_dark_api import NewDarkAPIClient, GOAL_DISPLAY, COUNTRY_DISPLAY
-from services.proxy_manager import ProxyManager
-proxy_manager = ProxyManager('proxies.txt')
 
 
 class NewDarkGate(BaseGate):
@@ -48,12 +46,9 @@ class NewDarkGate(BaseGate):
         await call.answer("تم الإلغاء")
 
     # ────── Proxy Steps ──────
-    async def handle_proxy_auto(self, call, state, proxy=None):
-        if proxy is None:
-            proxy_val = proxy_manager.choose() if proxy_manager else None
-        else:
-            proxy_val = proxy
-        await state.update_data(proxy=proxy_val)
+    async def handle_proxy_auto(self, call, state):
+        proxy = None  # يمكنك إضافة proxy_manager.choose() هنا
+        await state.update_data(proxy=proxy)
         await state.set_state(NewDarkStates.waiting_cookies)
         await self._upd(call, state, "✅ <b>البروكسي:</b> تم اختياره\n\n━━━━━━━━━━━━━━━━━━━━\n🔽 <b>الخطوة 2:</b> أرسل الكوكيز", kb=back_to_proxy())
 
@@ -114,50 +109,31 @@ class NewDarkGate(BaseGate):
         await state.update_data(goal=goal)
         await state.set_state(NewDarkStates.waiting_age)
         gname = GOAL_DISPLAY.get(goal, goal)
-        await self._upd(
-            call,
-            state,
-            f"✅ <b>الهدف:</b> {gname}\n\n🔽 <b>الخطوة 7:</b> اختر نطاق العمر\nيمكنك كتابة مثال: <code>18-45</code>",
-            kb=nd_age_keyboard()
-        )
+        await self._upd(call, state, f"✅ <b>الهدف:</b> {gname}\n\n🔽 <b>الخطوة 7:</b> أدخل نطاق العمر\nمثال: <code>18-45</code>", kb=cancel_keyboard())
 
-    async def handle_age(self, message_or_call, state):
-        if isinstance(message_or_call, CallbackQuery):
-            age_range = ':'.join(message_or_call.data.split(':')[2:])
-        else:
-            age_range = message_or_call.text.strip()
-
+    async def handle_age(self, message, state):
         try:
+            age_range = message.text.strip()
             if '-' in age_range:
                 min_age, max_age = map(int, age_range.split('-'))
             else:
                 min_age = max_age = int(age_range)
             await state.update_data(age_min=min_age, age_max=max_age)
-        except Exception:
-            await self._upd(message_or_call, state, "❌ صيغة خاطئة. مثال: 18-45", kb=cancel_keyboard())
+        except:
+            await self._upd(message, state, "❌ صيغة خاطئة. مثال: 18-45", kb=cancel_keyboard())
             return
 
         await state.set_state(NewDarkStates.waiting_gender)
-        await self._upd(message_or_call, state, "🔽 <b>الخطوة 8:</b> اختر الجنس", kb=nd_gender_keyboard())
+        await self._upd(message, state, "🔽 <b>الخطوة 8:</b> اختر الجنس", kb=nd_gender_keyboard())
 
     async def handle_gender(self, call, state, gender):
         await state.update_data(gender=gender)
         await state.set_state(NewDarkStates.waiting_image)
-        await self._upd(call, state,
+        await self._upd(call, state, 
             "✅ تم حفظ الاستهداف\n\n"
             "🔽 <b>الخطوة 9:</b> أرسل صورة الإعلان (اختياري)\n"
-            "أو اضغط ⏭️ تخطي الصورة",
-            kb=image_received_keyboard())
-
-    # ────── Image Back (re-upload) ──────
-    async def handle_image_back(self, call, state):
-        data = await state.get_data()
-        self.cleanup_temp_files(data.get("image_path"))
-        await state.update_data(image_path=None)
-        await state.set_state(NewDarkStates.waiting_image)
-        await self._upd(call, state,
-            "🔄 <b>أعد إرسال الصورة</b>\nأو اضغط ⏭️ تخطي الصورة",
-            kb=image_received_keyboard())
+            "أو اضغط تخطي", 
+            kb=cancel_keyboard())
 
     # ────── Image (Optional) ──────
     async def handle_image(self, message, state):
@@ -266,7 +242,7 @@ class NewDarkGate(BaseGate):
                 country=data.get("country","EG"),
                 age_min=data.get("age_min",18),
                 age_max=data.get("age_max",65),
-                gender=data.get("gender") if data.get("gender") != "all" else None
+                gender=data.get("gender","all")
             )
 
             self.cleanup_temp_files(img_path)

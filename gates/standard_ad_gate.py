@@ -166,13 +166,27 @@ class StandardAdGate(BaseGate):
             posts = resp.get('posts', [])
             if posts:
                 await state.update_data(fetched_posts=posts)
-                await self.reply_step(
+                # نحاول نعدل كابشن البانر ليظهر البوستات
+                success = await self.update_banner_with_buttons(
                     message, state,
                     f"✅ <b>Page ID:</b> {result}\n\n"
                     "━━━━━━━━━━━━━━━━━━━━\n"
                     f"🔽 <b>الخطوة 5:</b> اختر البوست ({len(posts)} بوست)",
-                    reply_markup=post_selection_keyboard(posts)
+                    post_selection_keyboard(posts)
                 )
+                if not success:
+                    # لو فشل، نرسل رسالة إشعار مؤقتة وتمسح
+                    notif = await message.bot.send_message(
+                        message.chat.id,
+                        f"✅ <b>Page ID:</b> {result}\n\n"
+                        "━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🔽 <b>الخطوة 5:</b> اختر البوست ({len(posts)} بوست)",
+                        reply_markup=post_selection_keyboard(posts)
+                    )
+                    try:
+                        await notif.delete()
+                    except Exception:
+                        pass
             else:
                 await self.reply_step(
                     message, state,

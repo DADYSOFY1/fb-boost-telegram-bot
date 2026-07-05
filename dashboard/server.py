@@ -10,17 +10,17 @@ import sys
 from pathlib import Path
 
 from aiohttp import web
-from services.proxy_manager import ProxyManager
-from services.redeem import generate_code
 
 BOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BOT_DIR))
 
-# ابحث عن السطر 17-24 واستبدله بهذا:
-from database import db
+from database import DB
+from services.proxy_manager import ProxyManager
+from services.redeem import generate_code
 
 DASHBOARD_PORT = int(os.environ.get('PORT', 5000))
 
+db            = DB(str(BOT_DIR / 'data' / 'bot.db'))
 proxy_manager = ProxyManager(str(BOT_DIR / 'proxies.txt'))
 
 TEMPLATES_DIR = Path(__file__).parent / 'templates'
@@ -93,7 +93,9 @@ async def delete_user(request):
 
 
 async def get_codes(request):
-    rows = db.all_codes()
+    rows  = db.conn.execute(
+        'SELECT * FROM redeem_codes ORDER BY created_at DESC LIMIT 100'
+    ).fetchall()
     codes = [dict(r) for r in rows]
     return json_resp({'codes': codes})
 

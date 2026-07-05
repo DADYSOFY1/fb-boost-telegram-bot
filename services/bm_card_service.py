@@ -16,7 +16,7 @@ from urllib.parse import quote
 import httpx
 from services.fingerprints import DEVICE_PROFILES
 
-BM_BASE  = 'https://business.facebook.com'
+BM_BASE = 'https://business.facebook.com'
 GRAPHQL  = f'{BM_BASE}/api/graphql/'
 
 
@@ -39,32 +39,17 @@ def _get_proxies(proxy: Optional[str]) -> Optional[dict]:
 
 
 def _extract_dtsg(html: str) -> Optional[str]:
-    """
-    يستخرج fb_dtsg من أي صفحة ميتا (فيسبوك، انستغرام، ميتا بيزنس).
-    يدعم كل الصيغ المعروفة لتوكن ميتا.
-    """
     patterns = [
-        # 1. facebook.com -- DTSGInitialData JSON block (canonical)
         (r'"DTSGInitialData"[^}]{0,500}?"token":"([^"]{10,})"', 1),
-        # 2. facebook.com -- fb_dtsg input field
         (r'name="fb_dtsg"\s+value="([^"]{10,})"', 1),
-        # 3. Instagram/Meta -- require('DTSGInitialData')['token'] or .token
-        (r'require\s*\(\s*["\']DTSGInitialData["\']\s*\)\s*[\[\."\'](token)["\']?\s*[\]:]?', 0),
-        # 4. Instagram internal token
         (r'"token":"(AQ[A-Za-z0-9_-]{20,})"', 1),
         (r'"dtsg":"(AQ[A-Za-z0-9_-]{20,})"', 1),
-        # 5. Meta Business Suite
         (r'DTSGInitialData["\']?\s*=\s*\{[^}]{0,1000}?token["\']?\s*[:=]\s*["\']([^"\']{10,})["\']', 1),
-        # 6. FB Lite / mobile -- Legi.token
         (r'Legi\s*\.\s*token\s*=\s*["\']([A-Za-z0-9_-]{10,})["\']', 1),
-        # 7. Legacy fb_dtsg JSON
         (r'"fb_dtsg":"([^"]{10,})"', 1),
         (r'fb_dtsg["\']?\s*[:=]\s*["\']([A-Za-z0-9_-]{10,})["\']', 1),
-        # 8. Mobile/Lite dtsg= URL or form param
         (r'dtsg=([A-Z0-9_-]{10,50})', 1),
-        # 9. Instagram __dtsg
         (r'__dtsg["\']?\s*[:=]\s*["\']([A-Za-z0-9_-]{10,})["\']', 1),
-        # 10. Generic AQ token
         (r'"token"\s*:\s*"(AQ[A-Za-z0-9_-]{15,})"', 1),
     ]
     for pat, group_idx in patterns:
@@ -101,14 +86,9 @@ class BMCardService:
         }
 
     def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=30,
-            proxies=self.proxies,
-            follow_redirects=True,
-        )
+        return httpx.AsyncClient(timeout=30, proxies=self.proxies, follow_redirects=True)
 
     async def fetch_dtsg(self) -> Dict[str, Any]:
-        """يستخرج DTSG من أي صفحة ميتا ممكنة."""
         try_urls = [
             f'{BM_BASE}/',
             f'{BM_BASE}/billing/',
@@ -120,13 +100,11 @@ class BMCardService:
         for url in try_urls:
             try:
                 async with self._client() as c:
-                    resp = await c.get(url, headers=self._headers(),
-                                       cookies=self.cookies_dict)
-                    text = resp.text
+                    resp = await c.get(url, headers=self._headers(), cookies=self.cookies_dict)
                     url_lower = str(resp.url).lower()
-                    if 'login' in url_lower or 'checkpoint' in url_lower:
+                    if 'login' in url_lower or 'checkpoint' in resp.text.lower():
                         continue
-                    tok = _extract_dtsg(text)
+                    tok = _extract_dtsg(resp.text)
                     if tok:
                         self._dtsg = tok
                         return {'success': True}
@@ -134,18 +112,14 @@ class BMCardService:
                 continue
         return {'success': False, 'error': 'الكوكيز منتهية أو غير صالحة — تحقق منها'}
 
-    # ─────────────────────────────────────────────────────────────────────
-    #  الطلب الأول: جلب billing account id
-    #  الـ Bookmarklet يرسل لـ URL مع ?_callFlowletID=0&_triggerFlowletID=2596
-    #  و variables بدون encode (سلسلة JSON خام) — نفس المنطق هنا
-    # ─────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────
+    # الطلب 1: BillingHubPaymentMethodsViewQuery
+    # URL مع ?_callFlowletID=0&_triggerFlowletID=2596 كما في الـ Bookmarklet
+    # variables بدون encoding (سلسلة JSON خام)
+    # ────────────────────────────────────────────────────────────────
     async def get_billing_account_id(self, bm_id: str, ad_id: str) -> Dict[str, Any]:
         url = f'{GRAPHQL}?_callFlowletID=0&_triggerFlowletID=2596'
-
-        # variables بدون encode — نفس الـ Bookmarklet:
-        # variables={"businessID":"${bm}"}
         variables_raw = json.dumps({'businessID': bm_id}, separators=(',', ':'))
-
         body = '&'.join([
             f'av={self._user_id}',
             f'__aaid={ad_id}',
@@ -158,16 +132,13 @@ class BMCardService:
             f'variables={variables_raw}',
             'doc_id=23945721255021756',
         ])
-
         try:
             async with self._client() as c:
-                resp = await c.post(url, headers=self._headers(),
-                                    cookies=self.cookies_dict, content=body)
+                resp = await c.post(url, headers=self._headers(), cookies=self.cookies_dict, content=body)
                 try:
                     data = resp.json()
                 except Exception:
                     return {'success': False, 'error': f'رد غير JSON ({resp.status_code}): {resp.text[:200]}'}
-
             bm_ad_id = (data.get('data', {})
                             .get('business', {})
                             .get('billing_payment_account', {})
@@ -178,23 +149,19 @@ class BMCardService:
         except Exception as e:
             return {'success': False, 'error': f'خطأ شبكة: {e}'}
 
-    # ─────────────────────────────────────────────────────────────────────
-    #  الطلب الثاني: جلب البطاقات
-    #  الـ Bookmarklet يرسل لـ URL مع ?_callFlowletID=0&_triggerFlowletID=1
-    #  و variables بدون encode — نفس المنطق هنا
-    # ─────────────────────────────────────────────────────────────────────
-    async def get_payment_methods(self, bm_id: str, ad_id: str,
-                                   bm_ad_id: str) -> Dict[str, Any]:
+    # ────────────────────────────────────────────────────────────────
+    # الطلب 2: BillingHubPaymentMethodsBusinessSectionQuery
+    # URL مع ?_callFlowletID=0&_triggerFlowletID=1 كما في الـ Bookmarklet
+    # variables بدون encoding (سلسلة JSON خام)
+    # ────────────────────────────────────────────────────────────────
+    async def get_payment_methods(self, bm_id: str, ad_id: str, bm_ad_id: str) -> Dict[str, Any]:
         url = f'{GRAPHQL}?_callFlowletID=0&_triggerFlowletID=1'
-
-        # variables بدون encode — نفس الـ Bookmarklet
         variables_raw = json.dumps({
-            'paymentAccountID':           bm_ad_id,
-            'billable_account_types':     ['FB_ADS', 'WHATSAPP'],
-            'connected_asset_limit':      26,
+            'paymentAccountID':             bm_ad_id,
+            'billable_account_types':       ['FB_ADS', 'WHATSAPP'],
+            'connected_asset_limit':        26,
             'connected_asset_detail_limit': 5,
         }, separators=(',', ':'))
-
         body = '&'.join([
             f'av={self._user_id}',
             f'__aaid={ad_id}',
@@ -206,18 +173,15 @@ class BMCardService:
             f'variables={variables_raw}',
             'doc_id=24585166657733775',
         ])
-
         try:
             async with self._client() as c:
-                resp = await c.post(url, headers=self._headers(),
-                                    cookies=self.cookies_dict, content=body)
+                resp = await c.post(url, headers=self._headers(), cookies=self.cookies_dict, content=body)
                 try:
                     data = resp.json()
                 except Exception:
                     return {'success': False, 'error': f'رد غير JSON ({resp.status_code}): {resp.text[:200]}'}
-
             try:
-                methods = (data['data']['payment_account']['billing_payment_methods'])
+                methods = data['data']['payment_account']['billing_payment_methods']
                 cards = [m['credential'] for m in methods]
                 if not cards:
                     return {'success': False, 'error': 'لا توجد بطاقات في الحافظة'}
@@ -227,16 +191,14 @@ class BMCardService:
         except Exception as e:
             return {'success': False, 'error': f'خطأ شبكة: {e}'}
 
-    # ─────────────────────────────────────────────────────────────────────
-    #  الطلب الثالث: make_default
-    #  الـ Bookmarklet يرسل لـ /api/graphql/ العادي (بدون params)
-    #  و fb_dtsg مُشفَّر بـ encodeURIComponent
-    #  و variables مُشفَّرة بـ encodeURIComponent(JSON.stringify(vars))
-    # ─────────────────────────────────────────────────────────────────────
-    async def make_default(self, bm_id: str, ad_id: str,
-                            credential_id: str) -> Dict[str, Any]:
+    # ────────────────────────────────────────────────────────────────
+    # الطلب 3: BillingSaveSharedBizCardStateMutation
+    # URL عادي /api/graphql/ بدون params
+    # fb_dtsg و variables مُشفَّران بـ quote() = encodeURIComponent
+    # ────────────────────────────────────────────────────────────────
+    async def make_default(self, bm_id: str, ad_id: str, credential_id: str) -> Dict[str, Any]:
         def _rnd() -> str:
-            ts = int(time.time() * 1000)
+            ts  = int(time.time() * 1000)
             rnd = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=9))
             return f'upl_{ts}_{rnd}'
 
@@ -262,8 +224,6 @@ class BMCardService:
             'includeCreateNewFromOldFragment': False,
         }
 
-        # ← الفرق الجوهري: fb_dtsg و variables مُشفَّرَين بـ quote()
-        #   تماماً كما يفعل الـ Bookmarklet بـ encodeURIComponent
         body = '&'.join([
             f'av={self._user_id}',
             f'__aaid={ad_id}',
@@ -278,13 +238,11 @@ class BMCardService:
 
         try:
             async with self._client() as c:
-                resp = await c.post(GRAPHQL, headers=self._headers(),
-                                    cookies=self.cookies_dict, content=body)
+                resp = await c.post(GRAPHQL, headers=self._headers(), cookies=self.cookies_dict, content=body)
                 try:
                     data = resp.json()
                 except Exception:
                     return {'success': False, 'error': f'رد غير JSON ({resp.status_code}): {resp.text[:200]}'}
-
             if 'errors' in data and data['errors']:
                 msg = data['errors'][0].get('message', 'خطأ غير معروف')
                 return {'success': False, 'error': msg}
@@ -293,9 +251,9 @@ class BMCardService:
             return {'success': False, 'error': f'خطأ شبكة: {e}'}
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
 #  دوال الواجهة العامة
-# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
 
 async def get_bm_cards(cookies: str, bm_id: str, ad_id: str,
                        proxy: Optional[str] = None) -> Dict[str, Any]:
@@ -327,11 +285,8 @@ async def warm_bm_cards(cookies: str, bm_id: str, ad_id: str,
         label = f'{name} •••• {last4}'
 
         res = await svc.make_default(bm_id, ad_id, cid)
-        results.append({
-            'label':   label,
-            'success': res['success'],
-            'error':   res.get('error', ''),
-        })
+        results.append({'label': label, 'success': res['success'], 'error': res.get('error', '')})
+
         if interval_secs > 0 and cid != card_ids[-1]:
             await asyncio.sleep(interval_secs)
 
